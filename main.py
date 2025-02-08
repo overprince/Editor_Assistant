@@ -4,7 +4,8 @@ import tkinter as tk
 from tkinter import filedialog, Text, messagebox, font
 import re
 import textwrap
-import time
+import sys
+import os
 
 
 class TextEditorApp:
@@ -13,7 +14,7 @@ class TextEditorApp:
         self.root.title("Text Editor App")
 
         default_model = "gpt-4o-mini"
-        default_api_url = "your_api_provider"
+        default_api_url = "your_api_address"
 
         self.model_var = tk.StringVar(value=default_model)
         self.api_url_var = tk.StringVar(value=default_api_url)
@@ -73,10 +74,22 @@ class TextEditorApp:
 
         self.load_api_key()
 
+    def load_config(self):
+        # 打包后获取临时资源路径
+        if getattr(sys, 'frozen', False):
+            base_path = sys._MEIPASS
+        else:
+            base_path = os.path.dirname(os.path.abspath(__file__))
+        
+        config_path = os.path.join(base_path, 'config.json')
+        with open(config_path, 'r', encoding='utf-8') as config_file:
+            return json.load(config_file)
+
     def load_api_key(self):
         try:
-            with open('config.json') as config_file:
-                config = json.load(config_file)
+            #with open('config.json') as config_file:
+                #config = json.load(config_file)
+                config = self.load_config()
                 self.api_key = config["OPENAI_API_KEY"]
                 openai.api_key = self.api_key
         except FileNotFoundError:
@@ -188,7 +201,7 @@ class TextEditorApp:
         json_start = result_text.find('{')
         json_end = result_text.rfind('}') + 1
         json_str = result_text[json_start:json_end]
-        modified_data = json.loads(json_str,strict=False)
+        modified_data = json.loads(json_str, strict=False)
 
         # 显示修改后的全文
         self.modified_text_area.config(state='normal')
@@ -198,7 +211,7 @@ class TextEditorApp:
 
         differences = modified_data['item']['details']
         if not differences:
-            messagebox.showinfo("Info", "No suggestions found, your text is already perfect!")
+            messagebox.showinfo("Info", "没有找到错误!")
             return
 
         for idx, diff in enumerate(differences):
@@ -221,10 +234,9 @@ class TextEditorApp:
                     self.text_area.insert(end_idx, correct_frag)
                     self.text_area.tag_add(tag_name_correct, end_idx, f"{end_idx} + {len(correct_frag)}c")
                     self.text_area.tag_config(tag_name_correct, background="#d1e7dd", foreground="#248c5c")
-                    self.text_area.tag_bind(tag_name_ori, "<Enter>", lambda e, s=correct_frag, o=ori_frag, expl=explain, ori=sentence_origin, corr=sentence_corrected: self.show_suggestion_tooltip(e, s, o, expl, ori, corr))
+                    self.text_area.tag_bind(tag_name_ori, "<Enter>", lambda e, s=correct_frag, o=ori_frag, expl=explain, ori=sentence_origin, corr=sentence_corrected, idx=start_idx: self.show_suggestion_tooltip(e, s, o, expl, ori, corr, idx))
                     self.text_area.tag_bind(tag_name_ori, "<Leave>", self.hide_suggestion_tooltip)
-                    self.text_area.tag_bind(tag_name_ori, "<Button-1>", lambda e, s=correct_frag, o=ori_frag, expl=explain, ori=sentence_origin, corr=sentence_corrected, t=tag_name_ori: self.apply_suggestion(e, s, o, expl, ori, corr, t))
-
+                    self.text_area.tag_bind(tag_name_ori, "<Button-1>", lambda e, s=correct_frag, o=ori_frag, expl=explain, ori=sentence_origin, corr=sentence_corrected, t_ori=tag_name_ori, t_corr=tag_name_correct: self.apply_suggestion(e, s, o, expl, ori, corr, t_ori, t_corr))
 
     def show_suggestion_tooltip(self, event, suggestion, ori_frag, explanation, sentence_origin, sentence_corrected, index):
         bbox = self.text_area.bbox(index)
@@ -274,7 +286,6 @@ class TextEditorApp:
         btn_replace_sentence = tk.Button(dialog, text="替换整句", command=lambda: [replace_sentence(), dialog.destroy()], font=self.custom_font)
         btn_replace_sentence.pack(side="left", padx=10, pady=10)
         btn_cancel = tk.Button(dialog, text="不做修改", command=lambda: [remove_correct_frag(), dialog.destroy()], font=self.custom_font)
-        btn_cancel.pack(side="left", padx=10, pady=10)
         btn_cancel.pack(side="left", padx=10, pady=10)
         btn_close = tk.Button(dialog, text="取消", command=dialog.destroy, font=self.custom_font)
         btn_close.pack(side="left", padx=10, pady=10)
