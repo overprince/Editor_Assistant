@@ -13,7 +13,7 @@ class TextEditorApp:
         self.root.title("Text Editor App")
 
         default_model = "gpt-4o-mini"
-        default_api_url = "https://www.gptapi.us/v1/"
+        default_api_url = "your_api_provider"
 
         self.model_var = tk.StringVar(value=default_model)
         self.api_url_var = tk.StringVar(value=default_api_url)
