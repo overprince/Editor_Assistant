@@ -125,7 +125,7 @@ class TextEditorApp:
             messagebox.showerror("Error", "Error decoding config.json.")
 
     def open_file(self):
-        file_path = filedialog.askopenfilename(filetypes=[("Text Files", "*.txt"), ("Word Documents", "*.docx"), ("All Files", "*.*")])
+        file_path = filedialog.askopenfilename(filetypes=[("Word Documents", "*.docx"),("Text Files", "*.txt"),  ("All Files", "*.*")])
         if file_path:
             if file_path.endswith('.docx'):
                 self.open_docx_file(file_path)
@@ -147,7 +147,7 @@ class TextEditorApp:
         self.text_area.insert(tk.END, content)
 
     def save_file(self):
-        file_path = filedialog.asksaveasfilename(defaultextension=".txt", filetypes=[("Text Files", "*.txt"), ("Word Documents", "*.docx"), ("All Files", "*.*")])
+        file_path = filedialog.asksaveasfilename(defaultextension=".txt", filetypes=[("Word Documents", "*.docx"),("Text Files", "*.txt"),  ("All Files", "*.*")])
         if file_path:
             if file_path.endswith('.docx'):
                 self.save_docx_file(file_path)
@@ -197,7 +197,7 @@ class TextEditorApp:
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": f"请优化如下文本：{content}"}
                 ],
-                # max_tokens=4096,  # 单次请求最大token数量
+                max_tokens=8192,  # 单次请求最大token数量
                 temperature=1.0,
                 stream=False
             )
