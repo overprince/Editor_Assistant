@@ -14,6 +14,7 @@ class TextEditorApp:
         self.root.title("Text Editor App")
 
         default_model = "gpt-4o-mini"
+
         default_api_url = "https://your_api_url/v1/"
 
         self.model_var = tk.StringVar(value=default_model)
@@ -42,8 +43,8 @@ class TextEditorApp:
         frame = tk.Frame(root)
         frame.pack(expand='yes', fill='both')
 
-        suggestion_frame = tk.Frame(frame, width=400, height=900)
-        suggestion_frame.pack(expand=True,side='left', fill='both', padx=5, pady=5)
+        suggestion_frame = tk.Frame(frame, width=300, height=600)
+        suggestion_frame.pack(side='left', fill='both', padx=5, pady=5)
         suggestion_frame.pack_propagate(False)
 
         suggestion_title = tk.Label(suggestion_frame, text="修改建议", font=self.custom_font)
@@ -52,22 +53,25 @@ class TextEditorApp:
         self.suggestion_area = Text(suggestion_frame, wrap='char', font=self.custom_font)
         self.suggestion_area.pack(expand=True, fill='both')
 
-        left_frame = tk.Frame(frame, width=700, height=900)
-        left_frame.pack(expand=True,side='left', fill='both')
+        left_frame = tk.Frame(frame, width=300, height=600)
+        left_frame.pack(side='left', fill='both')
         left_frame.pack_propagate(False)
 
         left_title = tk.Label(left_frame, text="输入待处理的文本", font=self.custom_font)
         left_title.pack(side="top", anchor="w", padx=5, pady=5)
 
+        toggle_button = tk.Button(left_frame, text="隐藏/展示全文", command=self.toggle_visibility, font=self.custom_font)
+        toggle_button.pack(side="top", anchor="w", padx=5, pady=5)
+
         self.text_area = Text(left_frame, wrap='char', font=self.custom_font)
         self.text_area.pack(expand=True, fill='both')
 
-        right_frame = tk.Frame(frame, width=700, height=900)
-        right_frame.pack(expand=True,side='right', fill='both')
+        right_frame = tk.Frame(frame, width=300, height=600)
+        right_frame.pack(side='right', fill='both')
         right_frame.pack_propagate(False)
 
-        right_title = tk.Label(right_frame, text="完整的修改结果", font=self.custom_font)
-        right_title.pack(side="top", anchor="w", padx=5, pady=5)
+        self.right_title = tk.Label(right_frame, text="完整的修改结果", font=self.custom_font)
+        self.right_title.pack(side="top", anchor="w", padx=5, pady=5)
 
         self.modified_text_area = Text(right_frame, wrap='char', state='disabled', bg='#f0f0f0', font=self.custom_font)
         self.modified_text_area.pack(expand=True, fill='both')
@@ -87,6 +91,16 @@ class TextEditorApp:
         self.sentence_tags = {}
 
         self.load_api_key()
+
+    def toggle_visibility(self):
+        if self.modified_text_area.winfo_viewable():
+            self.modified_text_area.pack_forget()
+            self.right_title.pack_forget()
+            self.text_area.pack_configure(expand=True, fill='both', side='left')
+        else:
+            self.right_title.pack(side="top", anchor="w", padx=5, pady=5)
+            self.modified_text_area.pack(expand=True, fill='both', side='right')
+            self.text_area.pack_configure(expand=True, fill='both', side='left')
 
     def load_config(self):
         # 打包后获取临时资源路径
@@ -178,45 +192,7 @@ class TextEditorApp:
 
         try:
             system_prompt = textwrap.dedent("""
-                    你是一名非常专业的文稿编辑。你负责对文本内容的错别字、语法错误、内容错误、表述在中国有政治风险、难以理解的描述方法等进行优化，不用对文本进行润色，如果某句话没有上述问题就不用修改，无需对原文进行创作润色，务必保证你修改后的结果和作者原意一致。结果的输出总是以“最终我认为完美的修改结果：”开始，且修改内容按照如下JSON格式输出，同时使输出的JSON格式正确符合代码规范。举例：
-                    我给你的输入：
-                        请优化如下文本：推动两岸关系和平发展，必须继续坚持“和平统一、一郭两制”方针，退进祖国和平统一。
-                    你的输入应该按照这个格式给出，在correct_text给出修改后的全文，需要保持原段落换行，在每一个修改details里，罗列每一处修改点；其中sentence_origin呈现本句原文，sentence_corrected呈现修改后的整句，modified_fragment记录这句修改的每处修改的片段，explain里写你这么修改的原因，ori_frag表示被修改片段的原文，correct_frag记录你给出的这部分片段的修改结果。
-                        最终我认为完美的修改结果：
-                        {
-                            "item": {
-                                "correct_text" : "推动两岸关系和平发展，必须继续坚持“和平统一、一国两制”方针，推进祖国和平统一。",
-                                "details": [
-                                    {
-                                        "sentence_origin": "必须继续艰持“和平统一、一郭两制”方针，",
-                                        "sentence_corrected": "必须继续坚持“和平统一、一国两制”方针，",
-                                        "modified_fragment": [
-                                            {
-                                                "explain": "建议用“发展”替换“法展”，原因是“法”在这里是错别字。",
-                                                "ori_frag": "法展",
-                                                "correct_frag": "发展"
-                                            },
-                                            {
-                                                "explain": "建议用“一国两制”替换“一郭两制”，原因是错别字，“一国两制”是专有名词。",
-                                                "ori_frag": "一郭两制",
-                                                "correct_frag": "一国两制"
-                                            },
-                                        ],
-                                    },
-                                    {
-                                        "sentence_origin": "退进祖国和平统一。",
-                                        "sentence_corrected": "推进祖国和平统一。",
-                                        "modified_fragment": [
-                                            {
-                                                "explain": "建议用“推进”替换“退进”，退在这里是错别字",
-                                                "ori_frag": "退进",
-                                                "correct_frag": "推进"
-                                            }
-                                        ]
-                                    }
-                                ]
-                            }
-                        }
+                    自定义prompt
                 """).strip()      
             response = openai.chat.completions.create(
                 model=model_name, # 指定自定义模型名称          
@@ -224,7 +200,7 @@ class TextEditorApp:
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": f"请优化如下文本：{content}"}
                 ],
-                max_tokens=4096,  # 单次请求最大token数量
+                #max_tokens=4096,  # 单次请求最大token数量
                 temperature=1.0,
                 stream=False
             )
