@@ -14,7 +14,6 @@ class TextEditorApp:
         self.root.title("Text Editor App")
 
         default_model = "gpt-4o-mini"
-
         default_api_url = "https://your_api_url/v1/"
 
         self.model_var = tk.StringVar(value=default_model)
@@ -43,7 +42,7 @@ class TextEditorApp:
         frame = tk.Frame(root)
         frame.pack(expand='yes', fill='both')
 
-        suggestion_frame = tk.Frame(frame, width=300, height=600)
+        suggestion_frame = tk.Frame(frame, width=400, height=900)
         suggestion_frame.pack(side='left', fill='both', padx=5, pady=5)
         suggestion_frame.pack_propagate(False)
 
@@ -53,27 +52,27 @@ class TextEditorApp:
         self.suggestion_area = Text(suggestion_frame, wrap='char', font=self.custom_font)
         self.suggestion_area.pack(expand=True, fill='both')
 
-        left_frame = tk.Frame(frame, width=300, height=600)
-        left_frame.pack(side='left', fill='both')
-        left_frame.pack_propagate(False)
+        self.left_frame = tk.Frame(frame, width=700, height=900)
+        self.left_frame.pack(side='left', fill='both')
+        self.left_frame.pack_propagate(False)
 
-        left_title = tk.Label(left_frame, text="输入待处理的文本", font=self.custom_font)
+        left_title = tk.Label(self.left_frame, text="输入待处理的文本", font=self.custom_font)
         left_title.pack(side="top", anchor="w", padx=5, pady=5)
 
-        toggle_button = tk.Button(left_frame, text="隐藏/展示全文", command=self.toggle_visibility, font=self.custom_font)
+        toggle_button = tk.Button(self.left_frame, text="隐藏/展示全文", command=self.toggle_visibility, font=self.custom_font)
         toggle_button.pack(side="top", anchor="w", padx=5, pady=5)
 
-        self.text_area = Text(left_frame, wrap='char', font=self.custom_font)
+        self.text_area = Text(self.left_frame, wrap='char', font=self.custom_font)
         self.text_area.pack(expand=True, fill='both')
 
-        right_frame = tk.Frame(frame, width=300, height=600)
-        right_frame.pack(side='right', fill='both')
-        right_frame.pack_propagate(False)
+        self.right_frame = tk.Frame(frame, width=700, height=900)
+        self.right_frame.pack(side='right', fill='both')
+        self.right_frame.pack_propagate(False)
 
-        self.right_title = tk.Label(right_frame, text="完整的修改结果", font=self.custom_font)
+        self.right_title = tk.Label(self.right_frame, text="完整的修改结果", font=self.custom_font)
         self.right_title.pack(side="top", anchor="w", padx=5, pady=5)
 
-        self.modified_text_area = Text(right_frame, wrap='char', state='disabled', bg='#f0f0f0', font=self.custom_font)
+        self.modified_text_area = Text(self.right_frame, wrap='char', state='disabled', bg='#f0f0f0', font=self.custom_font)
         self.modified_text_area.pack(expand=True, fill='both')
 
         self.menu = tk.Menu(root)
@@ -93,14 +92,12 @@ class TextEditorApp:
         self.load_api_key()
 
     def toggle_visibility(self):
-        if self.modified_text_area.winfo_viewable():
-            self.modified_text_area.pack_forget()
-            self.right_title.pack_forget()
-            self.text_area.pack_configure(expand=True, fill='both', side='left')
+        if self.right_frame.winfo_viewable():
+            self.right_frame.pack_forget()
+            self.left_frame.pack_configure(expand=True, fill='both', side='left')
         else:
-            self.right_title.pack(side="top", anchor="w", padx=5, pady=5)
-            self.modified_text_area.pack(expand=True, fill='both', side='right')
-            self.text_area.pack_configure(expand=True, fill='both', side='left')
+            self.right_frame.pack(expand=True, fill='both', side='right')
+            self.left_frame.pack_configure(expand=True, fill='both', side='left')
 
     def load_config(self):
         # 打包后获取临时资源路径
@@ -192,7 +189,7 @@ class TextEditorApp:
 
         try:
             system_prompt = textwrap.dedent("""
-                    自定义prompt
+                    prompt
                 """).strip()      
             response = openai.chat.completions.create(
                 model=model_name, # 指定自定义模型名称          
@@ -200,7 +197,7 @@ class TextEditorApp:
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": f"请优化如下文本：{content}"}
                 ],
-                #max_tokens=4096,  # 单次请求最大token数量
+                # max_tokens=4096,  # 单次请求最大token数量
                 temperature=1.0,
                 stream=False
             )
