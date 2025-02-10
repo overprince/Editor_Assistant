@@ -6,7 +6,7 @@ import re
 import textwrap
 import sys
 import os
-
+from docx import Document
 
 class TextEditorApp:
     def __init__(self, root):
@@ -14,7 +14,7 @@ class TextEditorApp:
         self.root.title("Text Editor App")
 
         default_model = "gpt-4o-mini"
-        default_api_url = "https://you_api_url/v1/"
+        default_api_url = "https://your_api_url/v1/"
 
         self.model_var = tk.StringVar(value=default_model)
         self.api_url_var = tk.StringVar(value=default_api_url)
@@ -42,23 +42,35 @@ class TextEditorApp:
         frame = tk.Frame(root)
         frame.pack(expand='yes', fill='both')
 
-        left_frame = tk.Frame(frame)
-        left_frame.pack(side='left', expand='yes', fill='both')
+        suggestion_frame = tk.Frame(frame, width=400, height=900)
+        suggestion_frame.pack(expand=True,side='left', fill='both', padx=5, pady=5)
+        suggestion_frame.pack_propagate(False)
 
-        right_frame = tk.Frame(frame)
-        right_frame.pack(side='right', expand='yes', fill='both')
+        suggestion_title = tk.Label(suggestion_frame, text="修改建议", font=self.custom_font)
+        suggestion_title.pack(side="top", anchor="w", padx=5, pady=5)
+
+        self.suggestion_area = Text(suggestion_frame, wrap='char', font=self.custom_font)
+        self.suggestion_area.pack(expand=True, fill='both')
+
+        left_frame = tk.Frame(frame, width=700, height=900)
+        left_frame.pack(expand=True,side='left', fill='both')
+        left_frame.pack_propagate(False)
 
         left_title = tk.Label(left_frame, text="输入待处理的文本", font=self.custom_font)
         left_title.pack(side="top", anchor="w", padx=5, pady=5)
 
         self.text_area = Text(left_frame, wrap='char', font=self.custom_font)
-        self.text_area.pack(expand='yes', fill='both')
+        self.text_area.pack(expand=True, fill='both')
+
+        right_frame = tk.Frame(frame, width=700, height=900)
+        right_frame.pack(expand=True,side='right', fill='both')
+        right_frame.pack_propagate(False)
 
         right_title = tk.Label(right_frame, text="完整的修改结果", font=self.custom_font)
         right_title.pack(side="top", anchor="w", padx=5, pady=5)
 
         self.modified_text_area = Text(right_frame, wrap='char', state='disabled', bg='#f0f0f0', font=self.custom_font)
-        self.modified_text_area.pack(expand='yes', fill='both')
+        self.modified_text_area.pack(expand=True, fill='both')
 
         self.menu = tk.Menu(root)
         root.config(menu=self.menu)
@@ -71,6 +83,8 @@ class TextEditorApp:
         file_menu.add_command(label="Exit", command=root.quit)
 
         self.tooltip = None
+        self.sentence_positions = []
+        self.sentence_tags = {}
 
         self.load_api_key()
 
@@ -100,19 +114,46 @@ class TextEditorApp:
             messagebox.showerror("Error", "Error decoding config.json.")
 
     def open_file(self):
-        file_path = filedialog.askopenfilename(filetypes=[("Text Files", "*.txt"), ("All Files", "*.*")])
+        file_path = filedialog.askopenfilename(filetypes=[("Text Files", "*.txt"), ("Word Documents", "*.docx"), ("All Files", "*.*")])
         if file_path:
-            with open(file_path, 'r', encoding='utf-8') as file:
-                content = file.read()
-                self.text_area.delete(1.0, tk.END)
-                self.text_area.insert(tk.END, content)
+            if file_path.endswith('.docx'):
+                self.open_docx_file(file_path)
+            else:
+                self.open_text_file(file_path)
+
+    def open_text_file(self, file_path):
+        with open(file_path, 'r', encoding='utf-8') as file:
+            content = file.read()
+            self.text_area.delete(1.0, tk.END)
+            self.text_area.insert(tk.END, content)
+
+    def open_docx_file(self, file_path):
+        document = Document(file_path)
+        content = ''
+        for para in document.paragraphs:
+            content += para.text + '\n'
+        self.text_area.delete(1.0, tk.END)
+        self.text_area.insert(tk.END, content)
 
     def save_file(self):
-        file_path = filedialog.asksaveasfilename(defaultextension=".txt", filetypes=[("Text Files", "*.txt"), ("All Files", "*.*")])
+        file_path = filedialog.asksaveasfilename(defaultextension=".txt", filetypes=[("Text Files", "*.txt"), ("Word Documents", "*.docx"), ("All Files", "*.*")])
         if file_path:
-            with open(file_path, 'w', encoding='utf-8') as file:
-                content = self.text_area.get(1.0, tk.END)
-                file.write(content)
+            if file_path.endswith('.docx'):
+                self.save_docx_file(file_path)
+            else:
+                self.save_text_file(file_path)
+
+    def save_text_file(self, file_path):
+        with open(file_path, 'w', encoding='utf-8') as file:
+            content = self.text_area.get(1.0, tk.END)
+            file.write(content)
+
+    def save_docx_file(self, file_path):
+        document = Document()
+        content = self.text_area.get(1.0, tk.END).split('\n')
+        for line in content:
+            document.add_paragraph(line)
+        document.save(file_path)
     
     def self_remove_spaces(self,text):
         symbols = '。，？！#……%（）{}【】[]：；“”‘'
@@ -137,7 +178,7 @@ class TextEditorApp:
 
         try:
             system_prompt = textwrap.dedent("""
-                    你是一名非常专业的文稿编辑。你负责对文本内容的错别字、语法错误、内容错误、难以理解的描述方法等进行优化，不用对文本进行润色，如果某句话没有上述问题就不用修改，无需对原文进行创作润色，务必保证你修改后的结果和作者原意一致。结果的输出总是以“最终我认为完美的修改结果：”开始，且修改内容按照如下JSON格式输出，同时使输出的JSON格式正确符合规范。在输出结果前，需要再检查是否做到了完整输出，不要发生信息遗漏。举例：
+                    你是一名非常专业的文稿编辑。你负责对文本内容的错别字、语法错误、内容错误、表述在中国有政治风险、难以理解的描述方法等进行优化，不用对文本进行润色，如果某句话没有上述问题就不用修改，无需对原文进行创作润色，务必保证你修改后的结果和作者原意一致。结果的输出总是以“最终我认为完美的修改结果：”开始，且修改内容按照如下JSON格式输出，同时使输出的JSON格式正确符合代码规范。举例：
                     我给你的输入：
                         请优化如下文本：推动两岸关系和平发展，必须继续坚持“和平统一、一郭两制”方针，退进祖国和平统一。
                     你的输入应该按照这个格式给出，在correct_text给出修改后的全文，需要保持原段落换行，在每一个修改details里，罗列每一处修改点；其中sentence_origin呈现本句原文，sentence_corrected呈现修改后的整句，modified_fragment记录这句修改的每处修改的片段，explain里写你这么修改的原因，ori_frag表示被修改片段的原文，correct_frag记录你给出的这部分片段的修改结果。
@@ -244,11 +285,67 @@ class TextEditorApp:
                         self.text_area.tag_config(tag_name_correct, background="#d1e7dd", foreground="#248c5c")
                         self.text_area.tag_bind(tag_name_ori, "<Enter>", lambda e, s=correct_frag, o=ori_frag, expl=explain, ori=sentence_origin, corr=sentence_corrected, idx=start_idx: self.show_suggestion_tooltip(e, s, o, expl, ori, corr, idx))
                         self.text_area.tag_bind(tag_name_ori, "<Leave>", self.hide_suggestion_tooltip)
-                        self.text_area.tag_bind(tag_name_ori, "<Button-1>", lambda e, s=correct_frag, o=ori_frag, expl=explain, ori=sentence_origin, corr=sentence_corrected, t_ori=tag_name_ori, t_corr=tag_name_correct: self.apply_suggestion(e, s, o, expl, ori, corr, t_ori, t_corr))
+                        self.text_area.tag_bind(tag_name_ori, "<Button-1>", lambda e, s=correct_frag, o=ori_frag, expl=explain, ori=sentence_origin, corr=sentence_corrected, t_ori=tag_name_ori, t_corr=tag_name_correct: self.display_suggestion_in_area(s, o, expl, ori, corr, t_ori, t_corr))
 
                         if sentence_origin not in self.sentence_tags:
                             self.sentence_tags[sentence_origin] = []
                         self.sentence_tags[sentence_origin].append(tag_name_ori)
+
+    def display_suggestion_in_area(self, suggestion, ori_frag, explanation, sentence_origin, sentence_corrected, tag_name_ori, tag_name_correct):
+        self.suggestion_area.config(state='normal')
+        self.suggestion_area.delete(1.0, tk.END)
+
+        label = tk.Label(self.suggestion_area, text=f"修改建议：\n（1）将 {ori_frag} 修改为 {suggestion}；\n（2）原因是：{explanation}；\n（3）\n本句原文：{sentence_origin}\n本句改后：{sentence_corrected}", justify="left", wraplength=380, font=self.custom_font)
+        self.suggestion_area.window_create(tk.END, window=label)
+        self.suggestion_area.insert(tk.END, "\n\n")
+
+        btn_replace_fragment = tk.Button(self.suggestion_area, text="仅替换片段", command=lambda: self.replace_fragment(tag_name_ori, tag_name_correct), font=self.custom_font)
+        self.suggestion_area.window_create(tk.END, window=btn_replace_fragment)
+        self.suggestion_area.insert(tk.END, " ")
+
+        btn_replace_sentence = tk.Button(self.suggestion_area, text="替换整句", command=lambda: self.replace_sentence(tag_name_ori, tag_name_correct), font=self.custom_font)
+        self.suggestion_area.window_create(tk.END, window=btn_replace_sentence)
+        self.suggestion_area.insert(tk.END, " ")
+
+        btn_cancel = tk.Button(self.suggestion_area, text="不做修改", command=lambda: self.remove_correct_frag(tag_name_correct), font=self.custom_font)
+        self.suggestion_area.window_create(tk.END, window=btn_cancel)
+        self.suggestion_area.insert(tk.END, " ")
+
+        btn_close = tk.Button(self.suggestion_area, text="取消", command=lambda: self.clear_suggestion_area(), font=self.custom_font)
+        self.suggestion_area.window_create(tk.END, window=btn_close)
+
+        self.suggestion_area.config(state='disabled')
+
+    def clear_suggestion_area(self):
+        self.suggestion_area.config(state='normal')
+        self.suggestion_area.delete(1.0, tk.END)
+        self.suggestion_area.config(state='disabled')
+
+    def replace_fragment(self, tag_name_ori, tag_name_correct):
+        start_idx, end_idx = self.text_area.tag_ranges(tag_name_ori)
+        self.text_area.delete(start_idx, end_idx)
+        self.text_area.tag_delete(tag_name_ori)
+
+    def replace_sentence(self, tag_name_ori, tag_name_correct):
+        sentence_origin = ""
+        for key, value in self.sentence_tags.items():
+            if tag_name_ori in value:
+                sentence_origin = key
+                break
+
+        if sentence_origin in self.sentence_tags:
+            for tag_name in self.sentence_tags[sentence_origin]:
+                ranges = self.text_area.tag_ranges(tag_name)
+                if len(ranges) == 2:  # 确保 tag_ranges 返回有效的索引
+                    start_idx, end_idx = ranges
+                    self.text_area.delete(start_idx, end_idx)
+                    self.text_area.tag_delete(tag_name)
+            self.sentence_tags.pop(sentence_origin)
+
+    def remove_correct_frag(self, tag_name_correct):
+        start_idx, end_idx = self.text_area.tag_ranges(tag_name_correct)
+        self.text_area.delete(start_idx, end_idx)
+        self.text_area.tag_delete(tag_name_correct)
 
     def show_suggestion_tooltip(self, event, suggestion, ori_frag, explanation, sentence_origin, sentence_corrected, index):
         bbox = self.text_area.bbox(index)
@@ -266,38 +363,6 @@ class TextEditorApp:
             self.tooltip.destroy()
             self.tooltip = None
 
-    def apply_suggestion(self, event, suggestion, ori_frag, explanation, sentence_origin, sentence_corrected, tag_name_ori, tag_name_correct):
-        def replace_fragment():
-            start_idx, end_idx = self.text_area.tag_ranges(tag_name_ori)
-            self.text_area.delete(start_idx, end_idx)
-            self.text_area.tag_delete(tag_name_ori)
-
-        def replace_sentence():
-            if sentence_origin in self.sentence_tags:
-                for tag_name in self.sentence_tags[sentence_origin]:
-                    start_idx, end_idx = self.text_area.tag_ranges(tag_name)
-                    self.text_area.delete(start_idx, end_idx)
-                    self.text_area.tag_delete(tag_name)
-                self.sentence_tags.pop(sentence_origin)
-
-        def remove_correct_frag():
-            start_idx, end_idx = self.text_area.tag_ranges(tag_name_correct)
-            self.text_area.delete(start_idx, end_idx)
-            self.text_area.tag_delete(tag_name_correct)
-
-        dialog = tk.Toplevel(self.root)
-        dialog.title("Apply Suggestion")
-        dialog.geometry("600x400")
-        label = tk.Label(dialog, text=f"修改建议：\n（1）将 {ori_frag} 修改为 {suggestion}；\n（2）原因是：{explanation}；\n（3）本句原文：{sentence_origin}\n本句改后：{sentence_corrected}", justify="left", wraplength=380, font=self.custom_font)
-        label.pack(pady=10)
-        btn_replace_fragment = tk.Button(dialog, text="仅替换片段", command=lambda: [replace_fragment(), dialog.destroy()], font=self.custom_font)
-        btn_replace_fragment.pack(side="left", padx=10, pady=10)
-        btn_replace_sentence = tk.Button(dialog, text="替换整句", command=lambda: [replace_sentence(), dialog.destroy()], font=self.custom_font)
-        btn_replace_sentence.pack(side="left", padx=10, pady=10)
-        btn_cancel = tk.Button(dialog, text="不做修改", command=lambda: [remove_correct_frag(), dialog.destroy()], font=self.custom_font)
-        btn_cancel.pack(side="left", padx=10, pady=10)
-        btn_close = tk.Button(dialog, text="取消", command=dialog.destroy, font=self.custom_font)
-        btn_close.pack(side="left", padx=10, pady=10)
 
 if __name__ == "__main__":
     root = tk.Tk()
